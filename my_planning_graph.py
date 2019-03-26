@@ -20,7 +20,7 @@ class ActionLayer(BaseActionLayer):
         layers.ActionNode
         """
         # TODO: implement this function
-        raise NotImplementedError
+        return any([~effect in self.children[actionA] for effect in self.children[actionB]])
 
 
     def _interference(self, actionA, actionB):
@@ -35,7 +35,9 @@ class ActionLayer(BaseActionLayer):
         layers.ActionNode
         """
         # TODO: implement this function
-        raise NotImplementedError
+        A_B = [~effect in actionA.preconditions for effect in actionB.effects]
+        B_A = [~effect in actionB.preconditions for effect in actionA.effects]
+        return  any(A_B) or any(B_A)
 
     def _competing_needs(self, actionA, actionB):
         """ Return True if any preconditions of the two actions are pairwise mutex in the parent layer
@@ -50,7 +52,10 @@ class ActionLayer(BaseActionLayer):
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
+
+        A_B = [self.parent_layer.is_mutex(preconditionA,preconditionB) for preconditionA in actionA.preconditions for preconditionB in actionB.preconditions]
+        B_A = [self.parent_layer.is_mutex(preconditionB, preconditionA) for preconditionA in actionA.preconditions for preconditionB in actionB.preconditions]
+        return any(A_B) or any(B_A)
 
 
 class LiteralLayer(BaseLiteralLayer):
@@ -67,12 +72,13 @@ class LiteralLayer(BaseLiteralLayer):
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
+        return all(self.parent_layer.is_mutex(actionA,actionB) for actionA in self.parents[literalA] for actionB in self.parents[literalB]) 
 
     def _negation(self, literalA, literalB):
         """ Return True if two literals are negations of each other """
         # TODO: implement this function
-        raise NotImplementedError
+        return literalA == ~literalB 
+
 
 
 class PlanningGraph:
@@ -136,7 +142,20 @@ class PlanningGraph:
         Russell-Norvig 10.3.1 (3rd Edition)
         """
         # TODO: implement this function
-        raise NotImplementedError
+       
+
+        h_levelsum = 0
+        while not self._is_leveled:
+            for goal in self.goal:
+                count = 0
+                for layer in self.literal_layers:
+                    self._extend()
+                    if goal in layer:                
+                        h_levelsum += count
+                        break
+                    count+=1
+        return h_levelsum
+
 
     def h_maxlevel(self):
         """ Calculate the max level heuristic for the planning graph
@@ -166,7 +185,19 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic with A*
         """
         # TODO: implement maxlevel heuristic
-        raise NotImplementedError
+       
+        h_maxlevel = 0
+        while not self._is_leveled:
+            for goal in self.goal:
+                count = 0
+                for layer in self.literal_layers:
+                    self._extend()
+                    if goal in layer:
+                        h_maxlevel = max(h_maxlevel,count)
+                        break
+                    count+=1
+            
+        return h_maxlevel
 
     def h_setlevel(self):
         """ Calculate the set level heuristic for the planning graph
@@ -191,7 +222,27 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic on complex problems
         """
         # TODO: implement setlevel heuristic
-        raise NotImplementedError
+        
+        level = 0
+        while not self._is_leveled:
+            layer = self.literal_layers[-1]
+            no_Mutex = True
+            seen_every_goal = True
+            
+            for goalA,goalB in combinations(self.goal,2):
+                if layer.is_mutex(goalA,goalB):
+                    no_Mutex = False
+
+            for goal in self.goal:
+                if goal not in layer:
+                    seen_every_goal = False
+            
+            if no_Mutex and seen_every_goal:
+                return level
+
+            self._extend()
+            level += 1
+        return False
 
     ##############################################################################
     #                     DO NOT MODIFY CODE BELOW THIS LINE                     #
